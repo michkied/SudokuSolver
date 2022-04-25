@@ -9,7 +9,7 @@ rows = sudoku_input.split('\n')
 for row in rows:
     grid.append([int(value) for value in row])
 
-numbers = set(range(1, 10))
+numbers = set(range(1, len(rows)+1))
 
 index = {}
 
