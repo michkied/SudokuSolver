@@ -53,13 +53,9 @@ class SudokuSolver:
             while True:
                 grid_before = copy.deepcopy(self.grid)
 
-                self.remove_wrong_values(self.generate_checks()[0])
-                self.remove_wrong_values(self.generate_checks()[1])
-                self.remove_wrong_values(self.generate_checks()[2])
-
-                self.pick_lone_possible_values(self.generate_checks()[2])
-
-                # self.remove_conflicting_possible_values()
+                self.remove_wrong_possible_values()
+                self.pick_lone_possible_values()
+                self.remove_conflicting_possible_values()
 
                 if grid_before == self.grid:
                     break
@@ -119,19 +115,6 @@ class SudokuSolver:
                 last_guess['value'] = new_cell_value
                 print(f'Checking if cell #{cell["id"]+1} could be {new_cell_value}')
 
-
-
-
-
-        # if self.is_correct():
-        #     if not self.is_completed():
-        #         print('\n\nFAILED! Following cells are ambiguous:')
-        #         self.print_sudoku(display_ambiguous=True)
-        #         return
-
-
-
-
     def print_sudoku(self, *, display_ambiguous=False):
         squares = self.generate_checks()[2]
         for i, square in enumerate(squares):
@@ -179,28 +162,28 @@ class SudokuSolver:
 
         return rows, columns, squares
 
-    def remove_wrong_values(self, check):
-        for line in check:
-            values = list(
-                filter(lambda cell: cell != 0,
-                       map(lambda cell: cell['value'], line)
-                       )
-            )
+    def remove_wrong_possible_values(self):
+        for i in range(0, 3):
+            check = self.generate_checks()[i]
+            for line in check:
+                values = list(
+                    filter(lambda cell: cell != 0,
+                           map(lambda cell: cell['value'], line)
+                           )
+                )
 
-            for cell in line:
-                if cell['value'] == 0:
-                    cell['possible_values'] = cell['possible_values'] - set(values)
+                for cell in line:
+                    if cell['value'] == 0:
+                        cell['possible_values'] = cell['possible_values'] - set(values)
 
-                    if len(cell['possible_values']) == 1:
-                        cell['value'] = list(cell['possible_values'])[0]
+                        if len(cell['possible_values']) == 1:
+                            cell['value'] = list(cell['possible_values'])[0]
 
-                    self.grid[cell['row']][cell['column']] = cell
+                        self.grid[cell['row']][cell['column']] = cell
 
-    def pick_lone_possible_values(self, check):
-        for line in check:
-            self.remove_wrong_values(self.generate_checks()[0])
-            self.remove_wrong_values(self.generate_checks()[1])
-            self.remove_wrong_values(self.generate_checks()[2])
+    def pick_lone_possible_values(self):
+        for line in self.generate_checks()[2]:
+            self.remove_wrong_possible_values()
 
             possible_values = []
             cell_count = 0
