@@ -1,168 +1,203 @@
 import math
+import copy
 from prettytable import PrettyTable, ALL
 
-with open('sudoku_input.txt', 'r+') as f:
-    sudoku_input = f.read()
 
-grid = []
-rows = sudoku_input.split('\n')
-for row in rows:
-    grid.append([int(value) for value in row])
+class SudokuSolver:
+    def __init__(self):
+        with open('sudoku_input.txt', 'r+') as f:
+            sudoku_input = f.read()
 
-numbers = set(range(1, len(rows)+1))
+        rows = sudoku_input.split('\n')
 
-index = {}
+        self.grid = []
+        self.numbers = set(range(1, len(rows) + 1))
 
-n = 0
-for y, row in enumerate(grid):
-    for x, cell in enumerate(row):
-        row[x] = {
-            'value': cell,
-            'id': n
-        }
+        for row in rows:
+            self.grid.append([int(value) for value in row])
 
-        if cell == 0:
-            row[x]['possible_values'] = numbers
+        self.square_side = int(len(self.grid) ** 0.5)
 
-        index[n] = (y, x)
+        n = 0
+        for y, row in enumerate(self.grid):
+            for x, cell in enumerate(row):
+                square_x = math.ceil((x + 1) / self.square_side) - 1
+                square_y = math.ceil((y + 1) / self.square_side) - 1
 
-        n += 1
+                row[x] = {
+                    'value': cell,
+                    'id': n,
+                    'column': x,
+                    'row': y,
+                    'square_id': square_x + square_y * self.square_side
+                }
 
-square_side = int(len(grid) ** 0.5)
+                if cell == 0:
+                    row[x]['possible_values'] = self.numbers
 
+                n += 1
 
-def generate_checks():
-    rows = grid
+        print('INPUT:')
+        self.print_sudoku()
 
-    columns = []
-    squares = []
-    for _ in grid:
-        columns.append([])
-        squares.append([])
+        self.solve()
 
-    for y, row in enumerate(rows):
-        square_y = math.ceil((y + 1) / square_side) - 1
+    def solve(self):
+        runs = 1
+        while True:
+            grid_before = copy.deepcopy(self.grid)
 
-        for x, cell in enumerate(row):
-            columns[x].append(cell)
+            self.remove_wrong_values(self.generate_checks()[0])
+            self.remove_wrong_values(self.generate_checks()[1])
+            self.remove_wrong_values(self.generate_checks()[2])
 
-            square_x = math.ceil((x + 1) / square_side) - 1
-            squares[square_x + square_y * square_side].append(cell)
+            self.pick_lone_possible_values(self.generate_checks()[2])
 
-    return rows, columns, squares
+            self.remove_conflicting_possible_values()
 
+            if grid_before == self.grid:
+                break
 
-def remove_wrong_values(check):
-    for line in check:
-        values = list(
-            filter(lambda cell: cell != 0,
-                   map(lambda cell: cell['value'], line)
-                   )
-        )
+            print(f'\nRun #{runs}')
+            self.print_sudoku()
 
-        for cell in line:
-            if cell['value'] == 0:
-                cell['possible_values'] = cell['possible_values'] - set(values)
+            runs += 1
 
-                if len(cell['possible_values']) == 1:
-                    cell['value'] = list(cell['possible_values'])[0]
+        for row in self.grid:
+            for cell in row:
+                if cell['value'] == 0:
+                    print('\n\nFAILED! Following cells are ambiguous:')
+                    self.print_sudoku(display_ambiguous=True)
+                    return
 
-                y, x = index[cell['id']][0], \
-                       index[cell['id']][1]
-                grid[y][x] = cell
+        print(f'\n\nSUCCESS! Completed in {runs - 1} run(s)')
+        self.print_sudoku()
 
+    def print_sudoku(self, *, display_ambiguous=False):
+        squares = self.generate_checks()[2]
+        for i, square in enumerate(squares):
+            square_rows = []
 
-def pick_lone_possible_values(check):
-    for line in check:
-        remove_wrong_values(generate_checks()[0])
-        remove_wrong_values(generate_checks()[1])
-        remove_wrong_values(generate_checks()[2])
+            for i2, cell in enumerate(square):
+                value = str(cell['value'])
+                if display_ambiguous and value == '0':
+                    value = str(cell['possible_values']).replace(' ', '')
 
-        possible_values = []
-        cell_count = 0
-        for cell in line:
-            if cell['value'] == 0:
-                cell_count += 1
-                possible_values += list(cell['possible_values'])
+                if i2 % self.square_side != 0:
+                    square_rows[-1] += f" {value}"
+                else:
+                    square_rows.append(value)
 
-        if cell_count <= 1:
-            continue
+            pretty_square = ('\n'.join(square_rows)).replace('0', ' ')
+            squares[i] = pretty_square
 
-        lone_pos_values = set(filter(lambda _: possible_values.count(_) == 1, possible_values))
-        for cell in line:
+        square_grid = list([squares[i:i + self.square_side] for i in range(0, len(squares), self.square_side)])
 
-            if cell['value'] != 0:
+        tab = PrettyTable()
+        tab.header = False
+        tab.add_rows(square_grid)
+        tab.hrules = ALL
+        tab.vrules = ALL
+        print(tab)
+
+    def generate_checks(self):
+        rows = self.grid
+
+        columns = []
+        squares = []
+        for _ in self.grid:
+            columns.append([])
+            squares.append([])
+
+        for y, row in enumerate(rows):
+            square_y = math.ceil((y + 1) / self.square_side) - 1
+
+            for x, cell in enumerate(row):
+                columns[x].append(cell)
+
+                square_x = math.ceil((x + 1) / self.square_side) - 1
+                squares[square_x + square_y * self.square_side].append(cell)
+
+        return rows, columns, squares
+
+    def remove_wrong_values(self, check):
+        for line in check:
+            values = list(
+                filter(lambda cell: cell != 0,
+                       map(lambda cell: cell['value'], line)
+                       )
+            )
+
+            for cell in line:
+                if cell['value'] == 0:
+                    cell['possible_values'] = cell['possible_values'] - set(values)
+
+                    if len(cell['possible_values']) == 1:
+                        cell['value'] = list(cell['possible_values'])[0]
+
+                    self.grid[cell['row']][cell['column']] = cell
+
+    def pick_lone_possible_values(self, check):
+        for line in check:
+            self.remove_wrong_values(self.generate_checks()[0])
+            self.remove_wrong_values(self.generate_checks()[1])
+            self.remove_wrong_values(self.generate_checks()[2])
+
+            possible_values = []
+            cell_count = 0
+            for cell in line:
+                if cell['value'] == 0:
+                    cell_count += 1
+                    possible_values += list(cell['possible_values'])
+
+            if cell_count <= 1:
                 continue
 
-            for value in cell['possible_values']:
+            lone_pos_values = set(filter(lambda _: possible_values.count(_) == 1, possible_values))
+            for cell in line:
 
-                if value in lone_pos_values:
-                    cell['value'] = value
+                if cell['value'] != 0:
+                    continue
 
-                    y, x = index[cell['id']][0], \
-                           index[cell['id']][1]
-                    grid[y][x] = cell
+                for value in cell['possible_values']:
 
-                    break
+                    if value in lone_pos_values:
+                        cell['value'] = value
 
+                        self.grid[cell['row']][cell['column']] = cell
+                        break
 
-def print_sudoku():
-    squares = generate_checks()[2]
-    for i, square in enumerate(squares):
-        square_rows = []
+    def remove_conflicting_possible_values(self):
+        for num in self.numbers:
+            rows, columns, squares = self.generate_checks()
+            for square_id, square in enumerate(squares):
+                all_missing_values = self.numbers - set(map(lambda cell: cell['value'], square))
+                if num not in all_missing_values:
+                    continue
 
-        for i2, cell in enumerate(square):
-            if i2 % square_side != 0:
-                square_rows[-1] += f" {str(cell['value'])}"
-            else:
-                square_rows.append(str(cell['value']))
+                matching_cells = list(filter(lambda cell: num in cell['possible_values'] if cell['value'] == 0 else False, square))
 
-        pretty_square = ('\n'.join(square_rows)).replace('0', ' ')
-        squares[i] = pretty_square
+                matching_rows = []
+                matching_columns = []
 
-    square_grid = list([squares[i:i + square_side] for i in range(0, len(squares), square_side)])
+                for cell in matching_cells:
+                    matching_rows.append(cell['row'])
+                    matching_columns.append(cell['column'])
 
-    tab = PrettyTable()
-    tab.header = False
-    tab.add_rows(square_grid)
-    tab.hrules = ALL
-    tab.vrules = ALL
-    print(tab)
+                def update_grid(line):
+                    for cell in line:
+                        if cell['value'] != 0:
+                            continue
 
+                        if cell['square_id'] != square_id:
+                            cell['possible_values'] -= {num}
 
-def run():
-    print('INPUT:')
-    print_sudoku()
+                        self.grid[cell['row']][cell['column']] = cell
 
-    num = 1
-    while True:
-        grid_before = str(grid)
-
-        remove_wrong_values(generate_checks()[0])
-        remove_wrong_values(generate_checks()[1])
-        remove_wrong_values(generate_checks()[2])
-
-        pick_lone_possible_values(generate_checks()[2])
-
-        if grid_before == str(grid):
-            break
-
-        print(f'\nRun #{num}')
-        print_sudoku()
-
-        num += 1
-
-    for row in grid:
-        for cell in row:
-            if cell['value'] == 0:
-                print('\n\nFAILED! Following cells are ambiguous:')
-                for row in grid:
-                    print(list(map(lambda _: _['value'] if _['value'] != 0 else _['possible_values'], row)))
-                return
-
-    print(f'\n\nSUCCESS! Completed in {num - 1} run(s)')
-    print_sudoku()
+                if len(set(matching_rows)) == 1:
+                    update_grid(rows[matching_rows[0]])
+                if len(set(matching_columns)) == 1:
+                    update_grid(columns[matching_columns[0]])
 
 
-if __name__ == "__main__":
-    run()
+SudokuSolver()
