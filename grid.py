@@ -104,13 +104,15 @@ class Grid:
                 for cell in list_.cells:
                     if cell.value == 0:
                         cell.possible_values = cell.possible_values - set(values)
-
-                        if len(cell.possible_values) == 1:
-                            cell.value = list(cell.possible_values)[0]
-
                         self.update_cell(cell)
 
     def pick_values(self):
+        for row in self.rows:
+            for cell in row.cells:
+                if len(cell.possible_values) == 1:
+                    cell.value = list(cell.possible_values)[0]
+
+    def pick_lone_possible_values(self):
         for square in self.squares:
             self.remove_wrong_possible_values()
 

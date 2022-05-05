@@ -16,7 +16,15 @@ class SudokuSolver:
             sudoku_input = f.read()
         raw_rows = sudoku_input.split('\n')
 
-        self.grid = Grid(raw_rows)
+        try:
+            self.grid = Grid(raw_rows)
+        except IndexError:
+            print(f'\nPROVIDED SUDOKU IS INVALID')
+            return
+
+        if not self.grid.is_correct():
+            print(f'\nPROVIDED SUDOKU IS INVALID')
+            return
 
         print('INPUT:')
         self.grid.print()
@@ -33,8 +41,10 @@ class SudokuSolver:
             while True:
                 grid_before = copy.deepcopy(self.grid)
 
-                self.grid.pick_values()
+                self.grid.remove_wrong_possible_values()
                 self.grid.remove_conflicting_possible_values()
+                self.grid.pick_values()
+                self.grid.pick_lone_possible_values()
 
                 if grid_before == self.grid:
                     break
@@ -49,22 +59,26 @@ class SudokuSolver:
                 self.grid.print()
                 return
 
+            no_possible_values = False
             if self.grid.is_correct():
 
                 cell = self.grid.get_first_ambiguous_value()
 
-                value = min(cell.possible_values)
-                guesses += 1
-                guess = Guess(cell, value, copy.deepcopy(self.grid), guesses)
+                if not cell.possible_values:
+                    no_possible_values = True
+                else:
+                    value = min(cell.possible_values)
+                    guesses += 1
+                    guess = Guess(cell, value, copy.deepcopy(self.grid), guesses)
 
-                guess_memory.append(guess)
+                    guess_memory.append(guess)
 
-                cell.value = value
-                self.grid.update_cell(cell)
-                print(f'\nGUESS #{guesses} - Checking if cell #{cell.id+1} could be {value}')
-                self.grid.print(highlight=cell.id)
+                    cell.value = value
+                    self.grid.update_cell(cell)
+                    print(f'\nGUESS #{guesses} - Checking if cell #{cell.id+1} could be {value}')
+                    self.grid.print(highlight=cell.id)
 
-            else:
+            if not self.grid.is_correct() or no_possible_values:
                 if not guess_memory:
                     print('\n\nFAILURE! Couldn\'t solve this sudoku')
                     self.grid.print(display_ambiguous=True)
@@ -76,6 +90,10 @@ class SudokuSolver:
 
                 while not last_guess.cell.possible_values - {last_guess.value}:
                     print(f'Guess #{last_guess.id} is a dead end.')
+                    if len(guess_memory) == 1:
+                        print('\n\nFAILURE! Couldn\'t solve this sudoku')
+                        last_guess.grid_before_guess.print()
+                        return
                     guess_memory.pop(-1)
                     last_guess = guess_memory[-1]
                     print(f'Reverting to guess #{last_guess.id}')
